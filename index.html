@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maestro MEV — Real-Time Solana MEV Analytics</title>
+  <meta name="description" content="Real-time indexing and analytics for Solana MEV. Reconstruct arbitrage flows, sniper activity, and DEX routes with sub-second precision." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080b10;
+      --surface: #0d1117;
+      --surface2: #161b24;
+      --border: #1e2733;
+      --border2: #2a3441;
+      --green: #00ff88;
+      --green-dim: #00cc6a;
+      --green-glow: rgba(0, 255, 136, 0.12);
+      --cyan: #00d4ff;
+      --purple: #8b5cf6;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --text: #e2e8f0;
+      --text-dim: #8899aa;
+      --text-muted: #4a5568;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Inter', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── GRID BACKGROUND ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,255,136,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,136,0.025) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      height: 60px;
+      background: rgba(8, 11, 16, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .nav-logo .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--green); }
+
+    .nav-badge {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      padding: 4px 10px;
+      border: 1px solid var(--green);
+      color: var(--green);
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── SECTIONS ── */
+    section { position: relative; z-index: 1; }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 100px 2rem 4rem;
+      text-align: center;
+    }
+
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--green);
+      border: 1px solid rgba(0,255,136,0.3);
+      background: rgba(0,255,136,0.05);
+      padding: 5px 14px;
+      border-radius: 20px;
+      margin-bottom: 2rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .hero-tag::before {
+      content: '';
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .hero h1 {
+      font-size: clamp(2.8rem, 7vw, 5.5rem);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 .highlight {
+      background: linear-gradient(135deg, var(--green), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-sub {
+      max-width: 640px;
+      font-size: 1.15rem;
+      color: var(--text-dim);
+      line-height: 1.7;
+      margin-bottom: 3rem;
+    }
+
+    .hero-cta {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 4rem;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      background: var(--green);
+      color: #000;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 0.85rem;
+      border-radius: 6px;
+      text-decoration: none;
+      transition: all 0.2s;
+      letter-spacing: 0.02em;
+    }
+
+    .btn-primary:hover {
+      background: #00e87a;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(0,255,136,0.3);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      border: 1px solid var(--border2);
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      border-radius: 6px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    /* ── TERMINAL PREVIEW ── */
+    .terminal-wrapper {
+      width: 100%;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .terminal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 0 60px rgba(0,255,136,0.08), 0 40px 80px rgba(0,0,0,0.5);
+    }
+
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .terminal-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+    }
+
+    .terminal-bar .title {
+      margin-left: auto;
+      margin-right: auto;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .terminal-body {
+      padding: 1.5rem;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      line-height: 1.8;
+      color: var(--text-dim);
+      text-align: left;
+    }
+
+    .t-dim { color: var(--text-muted); }
+    .t-green { color: var(--green); }
+    .t-cyan { color: var(--cyan); }
+    .t-yellow { color: var(--yellow); }
+    .t-red { color: var(--red); }
+    .t-purple { color: var(--purple); }
+    .t-white { color: var(--text); }
+
+    .t-row {
+      display: flex;
+      gap: 2rem;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+
+    .t-row:last-child { border-bottom: none; }
+
+    .t-label { color: var(--text-muted); min-width: 120px; }
+
+    .cursor {
+      display: inline-block;
+      width: 8px; height: 14px;
+      background: var(--green);
+      vertical-align: middle;
+      animation: blink 1.2s step-end infinite;
+    }
+
+    /* ── STATS BAR ── */
+    .stats-bar {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 1.5rem 2rem;
+      display: flex;
+      justify-content: center;
+      gap: 4rem;
+      flex-wrap: wrap;
+      background: var(--surface);
+    }
+
+    .stat-item { text-align: center; }
+
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--green);
+      display: block;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* ── CONTAINER ── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    /* ── SECTION HEADER ── */
+    .section-header {
+      text-align: center;
+      margin-bottom: 4rem;
+    }
+
+    .section-tag {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--green);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    .section-header h2 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+
+    .section-header p {
+      color: var(--text-dim);
+      max-width: 560px;
+      margin: 0 auto;
+      font-size: 1rem;
+    }
+
+    /* ── FEATURES ── */
+    .features { padding: 6rem 0; }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      padding: 2rem;
+      transition: background 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 3px; height: 100%;
+      background: transparent;
+      transition: background 0.2s;
+    }
+
+    .feature-card:hover { background: var(--surface2); }
+    .feature-card:hover::before { background: var(--green); }
+
+    .feature-icon {
+      width: 40px; height: 40px;
+      border-radius: 8px;
+      background: var(--green-glow);
+      border: 1px solid rgba(0,255,136,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .feature-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.6rem;
+      color: var(--text);
+    }
+
+    .feature-card p {
+      font-size: 0.875rem;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+
+    .feature-tag {
+      display: inline-block;
+      margin-top: 1rem;
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      padding: 2px 8px;
+      border-radius: 3px;
+      border: 1px solid;
+    }
+
+    .tag-green { color: var(--green); border-color: rgba(0,255,136,0.3); background: rgba(0,255,136,0.05); }
+    .tag-cyan { color: var(--cyan); border-color: rgba(0,212,255,0.3); background: rgba(0,212,255,0.05); }
+    .tag-purple { color: var(--purple); border-color: rgba(139,92,246,0.3); background: rgba(139,92,246,0.05); }
+    .tag-yellow { color: var(--yellow); border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.05); }
+
+    /* ── HOW IT WORKS ── */
+    .how { padding: 6rem 0; background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+
+    .pipeline {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      overflow-x: auto;
+      padding-bottom: 1rem;
+    }
+
+    .pipeline-step {
+      flex: 1;
+      min-width: 180px;
+      padding: 2rem 1.5rem;
+      border: 1px solid var(--border);
+      border-right: none;
+      background: var(--bg);
+      position: relative;
+      transition: border-color 0.2s;
+    }
+
+    .pipeline-step:first-child { border-radius: 8px 0 0 8px; }
+    .pipeline-step:last-child { border-right: 1px solid var(--border); border-radius: 0 8px 8px 0; }
+
+    .pipeline-step:hover { border-color: var(--green); }
+
+    .step-num {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--green);
+      margin-bottom: 1rem;
+      letter-spacing: 0.1em;
+    }
+
+    .step-icon { font-size: 1.5rem; margin-bottom: 0.8rem; }
+
+    .pipeline-step h3 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .pipeline-step p {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    .arrow {
+      display: flex;
+      align-items: center;
+      color: var(--green);
+      font-size: 1.2rem;
+      flex-shrink: 0;
+      padding: 0 0.5rem;
+      opacity: 0.5;
+    }
+
+    /* ── TECH / ALCHEMY ── */
+    .tech { padding: 6rem 0; }
+
+    .tech-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      align-items: center;
+    }
+
+    .tech-content h2 {
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+
+    .tech-content p {
+      color: var(--text-dim);
+      font-size: 0.95rem;
+      line-height: 1.7;
+      margin-bottom: 1.5rem;
+    }
+
+    .tech-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .tech-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.9rem;
+      color: var(--text-dim);
+    }
+
+    .tech-list li::before {
+      content: '→';
+      color: var(--green);
+      font-family: var(--mono);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .alchemy-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .alchemy-card::before {
+      content: '';
+      position: absolute;
+      top: -40px; right: -40px;
+      width: 150px; height: 150px;
+      background: radial-gradient(circle, rgba(0,255,136,0.08), transparent 70%);
+      pointer-events: none;
+    }
+
+    .alchemy-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .alchemy-logo {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .alchemy-header h3 {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .alchemy-header span {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--green);
+      background: var(--green-glow);
+      border: 1px solid rgba(0,255,136,0.2);
+      padding: 2px 8px;
+      border-radius: 3px;
+      margin-left: auto;
+    }
+
+    .alchemy-metrics {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-size: 0.85rem;
+    }
+
+    .metric-row:last-child { border-bottom: none; }
+
+    .metric-row .label { color: var(--text-muted); font-family: var(--mono); font-size: 0.75rem; }
+    .metric-row .value { color: var(--text); font-family: var(--mono); font-size: 0.8rem; }
+    .metric-row .value.green { color: var(--green); }
+    .metric-row .value.cyan { color: var(--cyan); }
+
+    /* ── USE CASES ── */
+    .usecases { padding: 6rem 0; background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+
+    .usecases-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .usecase-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.75rem;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .usecase-card:hover {
+      border-color: var(--border2);
+      transform: translateY(-2px);
+    }
+
+    .usecase-num {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .usecase-card h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .usecase-card p {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+
+    /* ── CTA SECTION ── */
+    .cta-section {
+      padding: 6rem 0;
+      text-align: center;
+    }
+
+    .cta-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 4rem 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-box::before {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 500px; height: 300px;
+      background: radial-gradient(ellipse, rgba(0,255,136,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .cta-box h2 {
+      font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+
+    .cta-box p {
+      color: var(--text-dim);
+      max-width: 500px;
+      margin: 0 auto 2.5rem;
+      font-size: 1rem;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .footer-logo {
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .footer-links a {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: var(--green); }
+
+    .footer-copy {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-up {
+      animation: fadeUp 0.6s ease both;
+    }
+
+    .delay-1 { animation-delay: 0.1s; }
+    .delay-2 { animation-delay: 0.2s; }
+    .delay-3 { animation-delay: 0.35s; }
+    .delay-4 { animation-delay: 0.5s; }
+
+    /* ── SCROLLED IN ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .tech-grid { grid-template-columns: 1fr; }
+      .pipeline { flex-direction: column; }
+      .pipeline-step { border-right: 1px solid var(--border); border-bottom: none; border-radius: 0; }
+      .pipeline-step:first-child { border-radius: 8px 8px 0 0; }
+      .pipeline-step:last-child { border-radius: 0 0 8px 8px; border-bottom: 1px solid var(--border); }
+      .arrow { display: none; }
+      .stats-bar { gap: 2rem; }
+      footer { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <a href="#" class="nav-logo">
+      <div class="dot"></div>
+      maestro<span style="color:var(--green)">mev</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how">Architecture</a></li>
+      <li><a href="#tech">Infrastructure</a></li>
+      <li><a href="#usecases">Use Cases</a></li>
+    </ul>
+    <span class="nav-badge">SOLANA MAINNET</span>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-tag fade-up">Live Indexing Active</div>
+
+    <h1 class="fade-up delay-1">
+      Real-Time MEV<br />
+      <span class="highlight">Intelligence</span><br />
+      for Solana
+    </h1>
+
+    <p class="hero-sub fade-up delay-2">
+      Reconstruct arbitrage flows, detect sniper activity, and trace value movement across every major DEX — with sub-second precision and zero custom infrastructure.
+    </p>
+
+    <div class="hero-cta fade-up delay-3">
+      <a href="#features" class="btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Explore Platform
+      </a>
+      <a href="#tech" class="btn-secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        Infrastructure Stack
+      </a>
+    </div>
+
+    <!-- TERMINAL DEMO -->
+    <div class="terminal-wrapper fade-up delay-4">
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dot" style="background:#ff5f57"></div>
+          <div class="terminal-dot" style="background:#febc2e"></div>
+          <div class="terminal-dot" style="background:#28c840"></div>
+          <span class="title">maestro-mev — tx inspector</span>
+        </div>
+        <div class="terminal-body">
+          <div class="t-row">
+            <span class="t-dim">───────────────────────────────────────────────────────────────────────────</span>
+          </div>
+          <div class="t-row">
+            <span class="t-dim">TX</span>
+            <span class="t-cyan">4xK7mN...vQ9pR2</span>
+            <span class="t-dim">|</span>
+            <span class="t-green">● ARBITRAGE</span>
+            <span class="t-dim">|</span>
+            <span class="t-yellow">slot 312,847,091</span>
+          </div>
+          <div style="height:0.5rem"></div>
+          <div class="t-row">
+            <span class="t-label">route</span>
+            <span class="t-white">SOL → USDC → RAY → SOL</span>
+            <span class="t-dim">via Raydium → Orca → Jupiter</span>
+          </div>
+          <div class="t-row">
+            <span class="t-label">profit (est.)</span>
+            <span class="t-green">+0.4821 SOL</span>
+            <span class="t-dim">($85.23 @ current price)</span>
+          </div>
+          <div class="t-row">
+            <span class="t-label">fees paid</span>
+            <span class="t-white">0.000005 SOL</span>
+            <span class="t-dim">base</span>
+            <span class="t-yellow">+0.012 SOL</span>
+            <span class="t-dim">priority tip</span>
+          </div>
+          <div class="t-row">
+            <span class="t-label">tip ratio</span>
+            <span class="t-purple">96.0%</span>
+            <span class="t-dim">of profit retained</span>
+          </div>
+          <div class="t-row">
+            <span class="t-label">execution</span>
+            <span class="t-cyan">3 instructions</span>
+            <span class="t-dim">|</span>
+            <span class="t-white">confirmed in 420ms</span>
+          </div>
+          <div class="t-row">
+            <span class="t-label">signer</span>
+            <span class="t-dim">7Yqm...3rKp</span>
+            <span class="t-dim">| seen 847 similar txs in 24h</span>
+          </div>
+          <div style="height:0.5rem"></div>
+          <div class="t-row">
+            <span class="t-dim">───────────────────────────────────────────────────────────────────────────</span>
+          </div>
+          <div>
+            <span class="t-green">maestro</span><span class="t-dim">@solana-mainnet</span><span class="t-dim"> ~ $ </span><span class="cursor"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS BAR -->
+  <div class="stats-bar reveal">
+    <div class="stat-item">
+      <span class="stat-value">312M+</span>
+      <span class="stat-label">Slots Indexed</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value">&lt;50ms</span>
+      <span class="stat-label">Indexing Latency</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value">8+</span>
+      <span class="stat-label">DEXs Monitored</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value">100%</span>
+      <span class="stat-label">On-Chain Coverage</span>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-tag">// Core Capabilities</span>
+        <h2>What Maestro MEV Sees</h2>
+        <p>Every complex transaction unpacked — from raw bytes to actionable intelligence.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card reveal">
+          <div class="feature-icon">⚡</div>
+          <h3>Real-Time Transaction Streaming</h3>
+          <p>Ingest and process confirmed transactions within milliseconds of slot finalization. No polling — persistent WebSocket streams with automatic reconnect.</p>
+          <span class="feature-tag tag-green">~50ms latency</span>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon">🔀</div>
+          <h3>DEX Route Reconstruction</h3>
+          <p>Decode inner instructions across Raydium, Orca, Jupiter, Meteora, Lifinity and more. Trace exact token paths including multi-hop swaps in a single transaction.</p>
+          <span class="feature-tag tag-cyan">8+ protocols</span>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon">🎯</div>
+          <h3>Arbitrage & Sniper Detection</h3>
+          <p>Identify circular trade routes that yield net profit. Classify sniper transactions by timing, priority fees, and target token characteristics.</p>
+          <span class="feature-tag tag-purple">ML-assisted</span>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon">💰</div>
+          <h3>Profit Estimation Engine</h3>
+          <p>Compute estimated net profit for each MEV transaction including base fees, priority tips, compute unit consumption, and slippage adjustments.</p>
+          <span class="feature-tag tag-yellow">per-tx accuracy</span>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon">📊</div>
+          <h3>Historical Backfill & Analytics</h3>
+          <p>Access and reprocess historical transaction data to identify recurring bot patterns, volume shifts, and protocol-level MEV trends over time.</p>
+          <span class="feature-tag tag-cyan">Full history</span>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon">🖥</div>
+          <h3>Terminal Inspector Interface</h3>
+          <p>A structured, keyboard-first UI to inspect any transaction: fee breakdown, token balances pre/post, instruction trace, and signer behavior analysis.</p>
+          <span class="feature-tag tag-green">TUI-first</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="how" id="how">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-tag">// Architecture</span>
+        <h2>Data Pipeline Overview</h2>
+        <p>From raw on-chain events to structured MEV intelligence in a single low-latency pipeline.</p>
+      </div>
+
+      <div class="pipeline reveal">
+        <div class="pipeline-step">
+          <div class="step-num">01 / INGEST</div>
+          <div class="step-icon">📡</div>
+          <h3>WebSocket Streaming</h3>
+          <p>Subscribe to Solana slot and transaction notifications via Alchemy's high-throughput RPC endpoints.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="pipeline-step">
+          <div class="step-num">02 / DECODE</div>
+          <div class="step-icon">🔬</div>
+          <h3>Instruction Parsing</h3>
+          <p>Decode each instruction against known DEX program IDLs. Reconstruct inner calls and CPI chains.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="pipeline-step">
+          <div class="step-num">03 / CLASSIFY</div>
+          <div class="step-icon">🧠</div>
+          <h3>MEV Classification</h3>
+          <p>Identify arbitrage cycles, sandwich patterns, and sniper activity using heuristics and on-chain signals.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="pipeline-step">
+          <div class="step-num">04 / ENRICH</div>
+          <div class="step-icon">💎</div>
+          <h3>Profit Calculation</h3>
+          <p>Compute fee-adjusted profit, tip ratio, and expected value using real-time token price data.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="pipeline-step">
+          <div class="step-num">05 / SURFACE</div>
+          <div class="step-icon">🖥</div>
+          <h3>Terminal Interface</h3>
+          <p>Stream enriched events to the TUI dashboard for real-time inspection and historical querying.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TECH / ALCHEMY -->
+  <section class="tech" id="tech">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-tag">// Infrastructure</span>
+        <h2>Built on Production-Grade Rails</h2>
+        <p>The indexing layer demands reliability and throughput that most RPC providers can't match.</p>
+      </div>
+
+      <div class="tech-grid reveal">
+        <div class="tech-content">
+          <h2>Why Alchemy Powers<br/>Maestro MEV</h2>
+          <p>
+            MEV analytics lives and dies by data quality and latency. A single dropped transaction or stale block means missed opportunities and corrupted profit estimates. Alchemy's Solana infrastructure gives us the reliability guarantees that mission-critical indexing demands.
+          </p>
+          <ul class="tech-list">
+            <li>High-throughput WebSocket subscriptions with automatic failover</li>
+            <li>Enriched transaction APIs that reduce per-tx decoding overhead</li>
+            <li>Historical data access for pattern analysis and backfill jobs</li>
+            <li>Consistent sub-100ms RPC response times under heavy load</li>
+            <li>Dedicated node capacity to avoid noisy-neighbor degradation</li>
+            <li>Solana-native support including Jito tip account monitoring</li>
+          </ul>
+        </div>
+
+        <div class="alchemy-card reveal">
+          <div class="alchemy-header">
+            <div class="alchemy-logo">⚗️</div>
+            <div>
+              <h3>Alchemy — Solana RPC</h3>
+              <div style="font-size:0.75rem;color:var(--text-muted);font-family:var(--mono)">maestromev.xyz</div>
+            </div>
+            <span>ACTIVE</span>
+          </div>
+          <div class="alchemy-metrics">
+            <div class="metric-row">
+              <span class="label">RPC Endpoint</span>
+              <span class="value cyan">solana-mainnet.g.alchemy.com</span>
+            </div>
+            <div class="metric-row">
+              <span class="label">Avg Response</span>
+              <span class="value green">38ms</span>
+            </div>
+            <div class="metric-row">
+              <span class="label">WebSocket Uptime</span>
+              <span class="value green">99.97%</span>
+            </div>
+            <div class="metric-row">
+              <span class="label">Daily Compute Units</span>
+              <span class="value">~18M CUs / day</span>
+            </div>
+            <div class="metric-row">
+              <span class="label">Tx Decode API</span>
+              <span class="value green">Enabled</span>
+            </div>
+            <div class="metric-row">
+              <span class="label">Historical Access</span>
+              <span class="value green">Full</span>
+            </div>
+            <div class="metric-row">
+              <span class="label">Evaluation Period</span>
+              <span class="value">90 days</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- USE CASES -->
+  <section class="usecases" id="usecases">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-tag">// Use Cases</span>
+        <h2>Who This Is For</h2>
+        <p>Maestro MEV turns opaque on-chain behavior into structured, actionable intelligence.</p>
+      </div>
+
+      <div class="usecases-grid">
+        <div class="usecase-card reveal">
+          <div class="usecase-num">01</div>
+          <h3>MEV Researchers</h3>
+          <p>Quantify the full scope of extractable value on Solana. Study bot behavior, profit distributions, and protocol-level vulnerabilities without building custom infra.</p>
+        </div>
+        <div class="usecase-card reveal">
+          <div class="usecase-num">02</div>
+          <h3>Protocol Teams</h3>
+          <p>Understand how MEV bots interact with your liquidity pools. Measure sandwich attack frequency, arbitrage drain rates, and tip escalation patterns.</p>
+        </div>
+        <div class="usecase-card reveal">
+          <div class="usecase-num">03</div>
+          <h3>Traders & Analysts</h3>
+          <p>Inspect any wallet's MEV activity with complete transaction traces. Identify which bots are most profitable and which DEX routes they exploit most.</p>
+        </div>
+        <div class="usecase-card reveal">
+          <div class="usecase-num">04</div>
+          <h3>Infrastructure Builders</h3>
+          <p>Benchmark RPC providers against real MEV workloads. Validate indexing accuracy and latency under production-grade streaming pressure.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="container">
+      <div class="cta-box reveal">
+        <span class="section-tag" style="margin-bottom:1.5rem">// maestromev.xyz</span>
+        <h2>Making On-Chain Activity<br/>Transparent</h2>
+        <p>Maestro MEV is in active development. The infrastructure is live. The data is real. The insights are just beginning.</p>
+        <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
+          <a href="#features" class="btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Explore Features
+          </a>
+          <a href="https://github.com/a-maggi/maestro-mev" class="btn-secondary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.387.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12"/></svg>
+            View on GitHub
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <span class="footer-logo">maestro<span style="color:var(--green)">mev</span>.xyz</span>
+    <ul class="footer-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how">Architecture</a></li>
+      <li><a href="#tech">Infrastructure</a></li>
+    </ul>
+    <span class="footer-copy">Built on Solana · Powered by Alchemy</span>
+  </footer>
+
+  <script>
+    // Reveal on scroll
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          observer.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.1 });
+    reveals.forEach(el => observer.observe(el));
+
+    // Animate stats counter
+    function animateCount(el, target, suffix = '') {
+      const isFloat = target % 1 !== 0;
+      const duration = 1500;
+      const start = performance.now();
+      const update = (now) => {
+        const progress = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const value = isFloat ? (target * eased).toFixed(2) : Math.floor(target * eased);
+        el.textContent = value.toLocaleString() + suffix;
+        if (progress < 1) requestAnimationFrame(update);
+      };
+      requestAnimationFrame(update);
+    }
+
+    const statsBar = document.querySelector('.stats-bar');
+    let statsAnimated = false;
+    const statsObs = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !statsAnimated) {
+        statsAnimated = true;
+        document.querySelectorAll('.stat-value').forEach(el => {
+          const text = el.textContent;
+          if (text.includes('M+')) animateCount(el, 312, 'M+');
+          else if (text.includes('ms')) el.textContent = '<50ms';
+          else if (text.includes('+')) animateCount(el, 8, '+');
+          else if (text.includes('%')) el.textContent = '100%';
+        });
+      }
+    }, { threshold: 0.5 });
+    statsObs.observe(statsBar);
+  </script>
+</body>
+</html>
